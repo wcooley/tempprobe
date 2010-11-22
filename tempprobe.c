@@ -24,6 +24,7 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <stdint.h>
+#include <string.h>
 #include <util/delay.h>
 #include "usb_serial.h"
 
@@ -35,6 +36,7 @@
 void send_str(const char *s);
 uint8_t recv_str(char *buf, uint8_t size);
 void parse_and_execute_command(const char *buf, uint8_t num);
+void send_probe_enum(void);
 
 #if 0
 // Very simple character echo test
@@ -151,6 +153,11 @@ void parse_and_execute_command(const char *buf, uint8_t num)
 {
 	uint8_t port, pin, val;
 
+	// Temp probe enumeration request
+	if ( num == 4 && strncmp(buf, "enum", 4)) {
+		send_probe_enum();
+		return;
+	}
 	if (num < 3) {
 		send_str(PSTR("unrecognized format, 3 chars min req'd\r\n"));
 		return;
@@ -212,4 +219,6 @@ void parse_and_execute_command(const char *buf, uint8_t num)
 	send_str(PSTR("\", must be ? or =\r\n"));
 }
 
-
+void send_probe_enum() {
+	send_str(PSTR("Count 1\r\n0 Basic thermistor\r\n"));
+}
