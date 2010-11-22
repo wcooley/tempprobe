@@ -41,7 +41,7 @@
 
 
 # Target file name (without extension).
-TARGET = example
+TARGET = tempprobe
 
 
 # List C source files here. (C dependencies are automatically generated.)
@@ -599,6 +599,11 @@ clean_list :
 	$(REMOVE) $(SRC:.c=.i)
 	$(REMOVEDIR) .dep
 
+# Wil: rsync from VM to laptop to run the Teensy loader
+sync:
+	@[[ "$$OS_TYPE" = "darwin9.0" ]] && \
+		echo rsync -avP --delete devel3:w/usb_serial/ . || \
+		echo "don't run this here"
 
 # Create object files directory
 $(shell mkdir $(OBJDIR) 2>/dev/null)
@@ -611,4 +616,4 @@ $(shell mkdir $(OBJDIR) 2>/dev/null)
 # Listing of phony targets.
 .PHONY : all begin finish end sizebefore sizeafter gccversion \
 build elf hex eep lss sym coff extcoff \
-clean clean_list program debug gdb-config
+clean clean_list program debug gdb-config sync
