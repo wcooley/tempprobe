@@ -23,9 +23,12 @@
 
 #include <avr/io.h>
 #include <avr/pgmspace.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <util/delay.h>
+
+#include "analog.h"
 #include "usb_serial.h"
 
 #define LED_CONFIG	(DDRD |= (1<<6))
@@ -37,6 +40,18 @@ void send_str(const char *s);
 uint8_t recv_str(char *buf, uint8_t size);
 void parse_and_execute_command(const char *buf, uint8_t num);
 void send_probe_enum(void);
+
+struct probe_input_record {
+	uint8_t	pin;
+	prog_char *name;
+};
+
+struct probe_input_record probe_inputs[] = {
+	/* Pin	Name 	(Input number is index) */
+	{ 0, 	"Basic Thermistor" },
+};
+
+int probe_record_cnt = sizeof(probe_inputs) / sizeof(struct probe_input_record);
 
 #if 0
 // Very simple character echo test
@@ -154,7 +169,7 @@ void parse_and_execute_command(const char *buf, uint8_t num)
 	uint8_t port, pin, val;
 
 	// Temp probe enumeration request
-	if ( num == 4 && strncmp(buf, "enum", 4)) {
+	if ( num == 4 && ( strncmp(buf, PSTR("ENUM"), 4) || strncmp(buf, PSTR("enum"), 4) ) ) {
 		send_probe_enum();
 		return;
 	}
@@ -219,6 +234,22 @@ void parse_and_execute_command(const char *buf, uint8_t num)
 	send_str(PSTR("\", must be ? or =\r\n"));
 }
 
+void nl() {
+	send_str(PSTR("\r\n"));
+}
+
 void send_probe_enum() {
-	send_str(PSTR("Count 1\r\n0 Basic thermistor\r\n"));
+	int i;
+	char buf[32];
+
+	send_str(PSTR("*** BEGIN PROBE ENUMERATION ***\r\n"));
+
+	for (i=0; i < probe_record_cnt; i++) {
+		/*sprintf_P(buf, "%d", i);
+		send_str(buf); */
+		send_str(probe_inputs[i].name);
+		nl();
+	}
+
+	send_str(PSTR("*** END PROBE ENUMERATION ***\r\n\r\n"));
 }
