@@ -601,7 +601,7 @@ clean_list :
 
 # Wil: rsync from VM to laptop to run the Teensy loader
 sync:
-	@[[ "$$OS_TYPE" = "darwin9.0" ]] && \
+	@[[ "$$OSTYPE" = "darwin9.0" ]] && \
 		echo rsync -avP --delete devel3:w/usb_serial/ . || \
 		echo "don't run this here"
 
