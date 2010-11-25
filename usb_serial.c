@@ -65,7 +65,7 @@
 // Windows, even though the driver is supplied by Microsoft, an
 // INF file is needed to load the driver.  These numbers need to
 // match the INF file.
-#define VENDOR_ID		0x16C0
+#define VENDOR_ID		0x16C1
 #define PRODUCT_ID		0x047A
 
 // When you write data, it goes into a USB endpoint buffer, which
