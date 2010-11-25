@@ -1,5 +1,15 @@
+//
+// analog.h
+//
+// This is sample code downloaded from pjrc.com
+//
+
 #ifndef _analog_h_included__
 #define _analog_h_included__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -33,4 +43,8 @@ int16_t adc_read(uint8_t mux);
 #endif
 #endif
 
-#endif
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* _analog_h_included__ */

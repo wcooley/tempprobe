@@ -1,4 +1,7 @@
 // Simple analog to digitial conversion
+//
+// This is sample code downloaded from pjrc.com
+//
 
 #include <avr/io.h>
 #include <avr/pgmspace.h>
