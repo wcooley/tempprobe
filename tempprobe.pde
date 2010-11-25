@@ -31,8 +31,8 @@
 #include "usb_serial.h"
 
 #define LED_CONFIG	(DDRD |= (1<<6))
-#define LED_ON		(PORTD &= ~(1<<6))
-#define LED_OFF		(PORTD |= (1<<6))
+#define LED_OFF		(PORTD &= ~(1<<6))
+#define LED_ON		(PORTD |= (1<<6))
 #define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
 void send_str(const char *s);
@@ -50,27 +50,12 @@ char null_probe[] = "null_probe";
 
 const struct probe_input_record probe_inputs[] = {
 	/* Pin	Name 	(Input number is index) */
-	{ 0, 	basic_thermistor },
-//        { 1,    null_probe },
+	{ 9, 	basic_thermistor },
+        { 0,    null_probe },
 };
 
 int probe_record_cnt = sizeof(probe_inputs) / sizeof(struct probe_input_record);
 
-#if 0
-// Very simple character echo test
-int main(void)
-{
-	CPU_PRESCALE(0);
-	usb_init();
-	while (1) {
-		int n = usb_serial_getchar();
-		if (n >= 0) usb_serial_putchar(n);
-	}
-}
-
-#else
-
-// Basic command interpreter for controlling port pins
 int main(void)
 {
 	char buf[32];
@@ -109,18 +94,19 @@ int main(void)
 		// and then listen for commands and process them
 		while (1) {
 			send_str(PSTR("> "));
+                        LED_OFF;
 			n = recv_str(buf, sizeof(buf));
+                        LED_ON;
 			if (n == 255) break;
                         nl();
 			parse_and_execute_command(buf, n);
 		}
+                LED_ON;
 	}
 }
-#endif
 
 // Send a string to the USB serial port.  The string must be in
 // flash memory, using PSTR
-//
 void send_str(const char *s)
 {
 	char c;
@@ -131,7 +117,7 @@ void send_str(const char *s)
 	}
 }
 
-void send_memstr(char *s)
+void send_memstr(const char *s)
 {
     /*    int slen = strlen(s);
         for (int i = 0; i <= slen; i++) {
@@ -191,10 +177,17 @@ void parse_and_execute_command(const char *buf, uint8_t num)
                 return;
         }
         
+        if ( strncmp_P(buf, PSTR("rd"), 2) == 0 ) {
+                send_str(PSTR("Sorry, reading individual probes is not yet implemented"));
+                nl();
+                return;
+        }
+        
 	// otherwise, error message
 	send_str(PSTR("Unknown command \""));
-	usb_serial_putchar(buf[0]);
-	send_str(PSTR("\", must be ? or =")); nl();
+        send_memstr(buf);
+        send_str(PSTR("\""));
+        nl();
 }
 
 void nl() {
@@ -216,11 +209,11 @@ void send_probe_enum() {
 }
 
 void send_all_probes() {
-        int i,;
-        float temp, pindata;
+        int i;
+        int16_t pindata;
+        double temp = 0.0;
         char buf[32];
- 
- /*       
+        
         for (i=0; i < probe_record_cnt; i++) {
             
             pindata = analogRead(probe_inputs[i].pin);
@@ -235,21 +228,15 @@ void send_all_probes() {
             
             send_memstr(buf);
         }
-   */
 
-        pindata = analogRead(0);
-        temp = thermistor_volt_to_celc(pindata);
-        sprintf_P(buf, PSTR("%f voltage, %f celcius"), pindata, temp);
-        send_memstr(buf);
-        nl();
-            
+        nl();            
 }
 
-float thermistor_volt_to_celc(int code) {
+double thermistor_volt_to_celc(int code) {
  
-  float celsius;
+  double celsius;
   
-  /* This code if copied directly from
+  /* This code is copied directly from
      http://www.pjrc.com/teensy/tutorial4.html */
   if (code <= 289) {
     celsius = 5 + (code - 289) / 9.82;
