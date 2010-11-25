@@ -28,7 +28,6 @@
 #include <string.h>
 #include <util/delay.h>
 
-#include "analog.h"
 #include "usb_serial.h"
 
 #define LED_CONFIG	(DDRD |= (1<<6))
@@ -43,12 +42,16 @@ void send_probe_enum(void);
 
 struct probe_input_record {
 	uint8_t	pin;
-	prog_char *name;
+	char *name;
 };
 
-struct probe_input_record probe_inputs[] = {
+char basic_thermistor[] = "basic_thermistor";
+char null_probe[] = "null_probe";
+
+const struct probe_input_record probe_inputs[] = {
 	/* Pin	Name 	(Input number is index) */
-	{ 0, 	"Basic Thermistor" },
+	{ 0, 	basic_thermistor },
+//        { 1,    null_probe },
 };
 
 int probe_record_cnt = sizeof(probe_inputs) / sizeof(struct probe_input_record);
@@ -97,19 +100,18 @@ int main(void)
 		usb_serial_flush_input();
 
 		// print a nice welcome message
-		send_str(PSTR("\r\nTeensy USB Serial Example, "
-			"Simple Pin Control Shell\r\n\r\n"
-			"Example Commands\r\n"
-			"  B0?   Read Port B, pin 0\r\n"
-			"  C2=0  Write Port C, pin 1 LOW\r\n"
-			"  D6=1  Write Port D, pin 6 HIGH  (D6 is LED pin)\r\n\r\n"));
+		send_str(PSTR("\r\nTeensy USB Temperature Probe, "
+			"Commands\r\n"
+			"  enum  List available probes\r\n"
+			"  rdall Read all probes and return tab-separated string\r\n"
+			"  rd0-7 Read one of 0-7 possible probes\r\n\r\n"));
 
 		// and then listen for commands and process them
 		while (1) {
 			send_str(PSTR("> "));
 			n = recv_str(buf, sizeof(buf));
 			if (n == 255) break;
-			send_str(PSTR("\r\n"));
+                        nl();
 			parse_and_execute_command(buf, n);
 		}
 	}
@@ -124,10 +126,20 @@ void send_str(const char *s)
 	char c;
 	while (1) {
 		c = pgm_read_byte(s++);
-		if (!c) break;
+		if (!c) { usb_serial_putchar(c); break; }
 		usb_serial_putchar(c);
 	}
 }
+
+void send_memstr(char *s)
+{
+    /*    int slen = strlen(s);
+        for (int i = 0; i <= slen; i++) {
+                usb_serial_putchar(s[i]);
+        }
+        */
+        usb_serial_write((uint8_t *)&s[0], strlen(s)+1);
+}        
 
 // Receive a string from the USB serial port.  The string is stored
 // in the buffer and this function will not exceed the buffer size.
@@ -169,69 +181,20 @@ void parse_and_execute_command(const char *buf, uint8_t num)
 	uint8_t port, pin, val;
 
 	// Temp probe enumeration request
-	if ( num == 4 && ( strncmp(buf, PSTR("ENUM"), 4) || strncmp(buf, PSTR("enum"), 4) ) ) {
+	if ( num == 4 && strncmp_P(buf, PSTR("enum"), num) == 0 ) {
 		send_probe_enum();
 		return;
 	}
-	if (num < 3) {
-		send_str(PSTR("unrecognized format, 3 chars min req'd\r\n"));
-		return;
-	}
-	// first character is the port letter
-	if (buf[0] >= 'A' && buf[0] <= 'F') {
-		port = buf[0] - 'A';
-	} else if (buf[0] >= 'a' && buf[0] <= 'f') {
-		port = buf[0] - 'a';
-	} else {
-		send_str(PSTR("Unknown port \""));
-		usb_serial_putchar(buf[0]);
-		send_str(PSTR("\", must be A - F\r\n"));
-		return;
-	}
-	// second character is the pin number
-	if (buf[1] >= '0' && buf[1] <= '7') {
-		pin = buf[1] - '0';
-	} else {
-		send_str(PSTR("Unknown pin \""));
-		usb_serial_putchar(buf[0]);
-		send_str(PSTR("\", must be 0 to 7\r\n"));
-		return;
-	}
-	// if the third character is a question mark, read the pin
-	if (buf[2] == '?') {
-		// make the pin an input
-		*(uint8_t *)(0x21 + port * 3) &= ~(1 << pin);
-		// read the pin
-		val = *(uint8_t *)(0x20 + port * 3) & (1 << pin);
-		usb_serial_putchar(val ? '1' : '0');
-		send_str(PSTR("\r\n"));
-		return;
-	}
-	// if the third character is an equals sign, write the pin
-	if (num >= 4 && buf[2] == '=') {
-		if (buf[3] == '0') {
-			// make the pin an output
-			*(uint8_t *)(0x21 + port * 3) |= (1 << pin);
-			// drive it low
-			*(uint8_t *)(0x22 + port * 3) &= ~(1 << pin);
-			return;
-		} else if (buf[3] == '1') {
-			// make the pin an output
-			*(uint8_t *)(0x21 + port * 3) |= (1 << pin);
-			// drive it high
-			*(uint8_t *)(0x22 + port * 3) |= (1 << pin);
-			return;
-		} else {
-			send_str(PSTR("Unknown value \""));
-			usb_serial_putchar(buf[3]);
-			send_str(PSTR("\", must be 0 or 1\r\n"));
-			return;
-		}
-	}
+
+        if ( num == 5 && strncmp_P(buf, PSTR("rdall"), num) == 0 ) { 
+                send_all_probes();
+                return;
+        }
+        
 	// otherwise, error message
 	send_str(PSTR("Unknown command \""));
 	usb_serial_putchar(buf[0]);
-	send_str(PSTR("\", must be ? or =\r\n"));
+	send_str(PSTR("\", must be ? or =")); nl();
 }
 
 void nl() {
@@ -242,14 +205,79 @@ void send_probe_enum() {
 	int i;
 	char buf[32];
 
-	send_str(PSTR("*** BEGIN PROBE ENUMERATION ***\r\n"));
-
 	for (i=0; i < probe_record_cnt; i++) {
-		/*sprintf_P(buf, "%d", i);
-		send_str(buf); */
-		send_str(probe_inputs[i].name);
+		sprintf_P(buf, PSTR("%d %s"), i, probe_inputs[i].name);
+		send_memstr(buf);
 		nl();
 	}
+        /* End of records is signaled by a line starting with two dashes
+           and a space, followed by two "new lines" */
+        send_str(PSTR("-- ")); nl(); nl();
+}
 
-	send_str(PSTR("*** END PROBE ENUMERATION ***\r\n\r\n"));
+void send_all_probes() {
+        int i,;
+        float temp, pindata;
+        char buf[32];
+ 
+ /*       
+        for (i=0; i < probe_record_cnt; i++) {
+            
+            pindata = analogRead(probe_inputs[i].pin);
+            
+            temp = thermistor_volt_to_celc(pindata);
+            
+            // We multiply by 100 to give us 2 points of precision in integer form
+            sprintf_P(buf, PSTR("%d"), round(temp * 100));
+            
+            // Output tab-delimiter if this is not the first column
+            if ( i > 0 )  send_str(PSTR("\t"));
+            
+            send_memstr(buf);
+        }
+   */
+
+        pindata = analogRead(0);
+        temp = thermistor_volt_to_celc(pindata);
+        sprintf_P(buf, PSTR("%f voltage, %f celcius"), pindata, temp);
+        send_memstr(buf);
+        nl();
+            
+}
+
+float thermistor_volt_to_celc(int code) {
+ 
+  float celsius;
+  
+  /* This code if copied directly from
+     http://www.pjrc.com/teensy/tutorial4.html */
+  if (code <= 289) {
+    celsius = 5 + (code - 289) / 9.82;
+  }
+  if (code > 289 && code <= 342) {
+    celsius = 10 + (code - 342) / 10.60;
+  }
+  if (code > 342 && code <= 398) {
+    celsius = 15 + (code - 398) / 11.12;
+  }
+  if (code > 398 && code <= 455) {
+    celsius = 20 + (code - 455) / 11.36;
+  }
+  if (code > 455 && code <= 512) {
+    celsius = 25 + (code - 512) / 11.32;
+  }
+  if (code > 512 && code <= 566) {
+    celsius = 30 + (code - 566) / 11.00;
+  }
+  if (code > 566 && code <= 619) {
+    celsius = 35 + (code - 619) / 10.44;
+  }
+  if (code > 619 && code <= 667) {
+    celsius = 40 + (code - 667) / 9.73;
+  }
+  if (code > 667) {
+    celsius = 45 + (code - 712) / 8.90;
+  }
+  
+  return celsius;
 }
