@@ -30,7 +30,7 @@ ${TARGET}.o: ${TARGET}.c
 endif
 
 user: user.c
-	gcc -o $@ $<
+	gcc -g -o $@ $<
 
 clean::
 	$(RM) .sstore* *.cmd *.o *.ko *.mod.c user Module.symvers

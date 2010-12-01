@@ -1,0 +1,9 @@
+rrdtool create wirebird.rrd --step 5 \
+	DS:probe0:GAUGE:300:U:U \
+	DS:probe1:GAUGE:300:U:U \
+	DS:probe2:GAUGE:300:U:U \
+	RRA:AVERAGE:0.5:1:10000 \
+	RRA:AVERAGE:0.5:5:10000 \
+	RRA:AVERAGE:0.5:15:10000 \
+	RRA:MIN:0.5:15:10000 \
+	RRA:MAX:0.5:15:10000

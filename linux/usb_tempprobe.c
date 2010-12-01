@@ -247,18 +247,22 @@ static ssize_t tempprobe_read(struct file *file, char __user *buffer, size_t cou
 	/* This would need to be modified according to what data we will be reading in from tempprobe */
 	
 	/* do a blocking bulk read to get data from the device */
-	retval = usb_bulk_msg(dev->udev,
-			      usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
+	/// removed usb_bulk_msg, usb_rcvbulkpipe with:
+	retval = usb_interrupt_msg(dev->udev,
+			      usb_rcvintpipe(dev->udev, dev->bulk_in_endpointAddr),
 			      dev->bulk_in_buffer,
 			      min(dev->bulk_in_size, count),
-			      &actual_size, HZ*10);
+			      &actual_size, 5000);  //HZ*10
 
 	/* if the read was successful, copy the data to userspace */
 	if (!retval) {
-          if (copy_to_user(buffer, dev->bulk_in_buffer, actual_size))
+    printk(KERN_NOTICE "Read was successful\n");
+		if (copy_to_user(buffer, dev->bulk_in_buffer, actual_size))
 			retval = -EFAULT;
-		else
+		else {
 			retval = count;
+			printk(KERN_NOTICE "copy_to_user was successful\n");
+		}
 	}
 
 	return retval;
@@ -277,6 +281,8 @@ static void temmprobe_write_intr_callback(struct urb *urb, struct pt_regs *regs)
 		dbg("%s - nonzero write bulk status received: %d",
 		__FUNCTION__, urb->status);
 	}
+	
+	printk(KERN_NOTICE "urb status %d=0 is successful\n", urb->status);
 	/* free up our allocated buffer */
 	usb_buffer_free(urb->dev, urb->transfer_buffer_length,
 	urb->transfer_buffer, urb->transfer_dma);
