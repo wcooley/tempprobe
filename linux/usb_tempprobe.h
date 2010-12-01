@@ -1,0 +1,8 @@
+/*usb-tempprobe.h*/
+
+#define TEMPPROBE_MAGIC 0xFF
+#define ENUM_CMD _IO(TEMPPROBE_MAGIC, 0)
+#define RDALL_CMD _IO(TEMPPROBE_MAGIC, 1)
+
+#define TEMPPROBE_IOCTL_MAX 1
+

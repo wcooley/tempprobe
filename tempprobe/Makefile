@@ -46,7 +46,8 @@ TARGET = tempprobe
 
 # List C source files here. (C dependencies are automatically generated.)
 SRC =	$(TARGET).c \
-	usb_serial.c \
+	usb_rawhid.c \
+	analog.c
 
 
 # MCU name, you MUST set this to match the board you are using
@@ -59,10 +60,10 @@ MCU = atmega32u4        # Teensy 2.0
 
 
 # Processor frequency.
-#   Normally the first thing your program should do is set the clock prescaler,
-#   so your program will run at the correct speed.  You should also set this
-#   variable to same clock speed.  The _delay_ms() macro uses this, and many
-#   examples use this variable to calculate timings.  Do not add a "UL" here.
+#     This will define a symbol, F_CPU, in all source code files equal to the 
+#     processor frequency. You can then use this symbol in your source code to 
+#     calculate timings. Do NOT tack on a 'UL' at the end, this will be done
+#     automatically to create a 32-bit value in your source code.
 F_CPU = 16000000
 
 
@@ -119,7 +120,7 @@ CSTANDARD = -std=gnu99
 
 
 # Place -D or -U options here for C sources
-CDEFS = -DF_CPU=$(F_CPU)UL -D__AVR_ATmega32U4__
+CDEFS = -DF_CPU=$(F_CPU)UL
 
 
 # Place -D or -U options here for ASM sources
@@ -599,11 +600,6 @@ clean_list :
 	$(REMOVE) $(SRC:.c=.i)
 	$(REMOVEDIR) .dep
 
-# Wil: rsync from VM to laptop to run the Teensy loader
-sync:
-	@[[ "$$OSTYPE" = "darwin9.0" ]] && \
-		rsync -avP --delete devel3:w/usb_serial/ . || \
-		echo "don't run this here"
 
 # Create object files directory
 $(shell mkdir $(OBJDIR) 2>/dev/null)
@@ -616,4 +612,4 @@ $(shell mkdir $(OBJDIR) 2>/dev/null)
 # Listing of phony targets.
 .PHONY : all begin finish end sizebefore sizeafter gccversion \
 build elf hex eep lss sym coff extcoff \
-clean clean_list program debug gdb-config sync
+clean clean_list program debug gdb-config
