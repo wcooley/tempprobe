@@ -3,7 +3,7 @@
 RRD=wirebird.rrd
 GRAPH=wirebird.png
 
-rrdtool update $RRD N:$(./user b|sed 's/\t/:/g' 2> /dev/null)
+rrdtool update $RRD N:$(./user b|awk -F'\t' '{printf "%.2f:%.2f:%.2f\n" $1/100 $2/100 $3/100}' 2> /dev/null)
 
 rrdtool graph $GRAPH -w 320 -h 220 --start now-8hr --end now \
 	--font DEFAULT:0:Inconsolata \
