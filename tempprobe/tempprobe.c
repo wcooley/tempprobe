@@ -25,6 +25,7 @@
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include "usb_rawhid.h"
