@@ -18,6 +18,6 @@ Module.symvers
 modules.order
 
 # binaries & data
-linux/user
+linux/readtemp
 *.rrd
 *.png

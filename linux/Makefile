@@ -2,7 +2,7 @@ UNAME := $(shell uname -r)
 KERNEL26 := 2.6
 KERNELVERSION := $(findstring $(KERNEL26),$(UNAME))
 
-all:: user
+all:: readtemp
 
 ifeq ($(KERNELVERSION),2.6)
 
@@ -29,10 +29,10 @@ ${TARGET}.o: ${TARGET}.c
 
 endif
 
-user: user.c
+readtemp: readtemp.c
 	gcc -g -o $@ $<
 
 clean::
-	$(RM) .sstore* *.cmd *.o *.ko *.mod.c user Module.symvers modules.order
+	$(RM) .sstore* *.cmd *.o *.ko *.mod.c readtemp Module.symvers modules.order
 	$(RM) -R .tmp*
 
