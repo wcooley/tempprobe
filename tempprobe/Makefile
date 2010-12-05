@@ -39,6 +39,9 @@
 # To rebuild project do "make clean" then "make all".
 #----------------------------------------------------------------------------
 
+ifeq ($(shell uname -s),Darwin)
+    PATH := /Applications/Arduino.app/Contents/Resources/Java/hardware/tools/avr/bin:$(PATH)
+endif
 
 # Target file name (without extension).
 TARGET = tempprobe
