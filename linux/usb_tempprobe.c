@@ -230,9 +230,8 @@ static int tempprobe_open(struct inode *inode, struct file *file)
 
 	interface = usb_find_interface(&tempprobe_driver, subminor);
 	if (!interface) {
-		err(__FUNCTION__ ": %s - error,"
-				" can't find device for minor %d",
-				subminor);
+		err( "%s: unable to find device for minor %d",
+			__FUNCTION__, subminor);
 		retval = -ENODEV;
 		goto exit;
 	}
@@ -325,19 +324,13 @@ int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
 	 */
 	if (_IOC_TYPE(cmd) != TEMPPROBE_MAGIC) {
-		err(__FUNCTION__ ": !TEMPPROBE_MAGIC");
+		err("%s: !TEMPPROBE_MAGIC", __FUNCTION__);
 		return -ENOTTY;
 	}
 	if (_IOC_NR(cmd) > TEMPPROBE_IOCTL_MAX) {
-		err(__FUNCTION__ ":  > TEMPPROBE_IOC_MAXNR");
+		err("%s:  > TEMPPROBE_IOC_MAXNR", __FUNCTION__);
 		return -ENOTTY;
 	}
-
-	/*
-	 * If not root/sysadmin, go away
-	 */
-	if (!capable(CAP_SYS_ADMIN))
-		return -EPERM;
 
 	/*
 	 * the direction is a bitmask, and VERIFY_WRITE catches R/W
@@ -356,7 +349,7 @@ int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 	}
 
 	if (err) {
-		err(__FUNCTION__ ": access !ok");
+		err("%s: access !ok", __FUNCTION__);
 		return -EFAULT;
 	}
 
@@ -401,8 +394,8 @@ int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 	usb_led->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 
 	if ((retval = usb_submit_urb(usb_led, GFP_KERNEL))) {
-		err(__FUNCTION__ ": failed submitting write urb, "
-				"error %d", retval);
+		err("%s: failed submitting write urb, "
+			"error %d", __FUNCTION__, retval);
 	}
 
 	return 0;
