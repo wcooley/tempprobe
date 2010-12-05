@@ -23,16 +23,19 @@
  *
  */
 
-#include <linux/kernel.h>
+#include <asm/uaccess.h>
 #include <linux/errno.h>
 #include <linux/init.h>
-#include <linux/slab.h>
-#include <linux/module.h>
+#include <linux/kernel.h>
 #include <linux/kref.h>
+#include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/usb.h>
-#include <asm/uaccess.h>
+
 #include "usb_tempprobe.h"
+
+#define DEV "tempprobe"
 
 /*
  * Function prototypes
@@ -50,8 +53,7 @@ static void tempprobe_delete(struct kref *kref);
 static int tempprobe_release(struct inode *inode, struct file *file);
 static void __exit usb_tempprobe_exit(void);
 
-/* Define these values to match your devices */
-/* This needs to change depending on the values of temmprobe */
+/* This needs to change depending on the values of temprobe */
 #define USB_TEMPROBE_VENDOR_ID	0x16C0
 #define USB_TEMPROBE_PRODUCT_ID	0x0FFF
 
@@ -86,7 +88,7 @@ struct usb_tempprobe {
 #define to_tempprobe_dev(d) container_of(d, struct usb_tempprobe, kref)
 
 static struct usb_driver tempprobe_driver = {
-	.name 		= "tempprobe",
+	.name 		= DEV,
 	.id_table 	= tempprobe_table,
 	.probe 		= tempprobe_probe,
 	.disconnect 	= tempprobe_disconnect,
@@ -105,14 +107,12 @@ static struct file_operations tempprobe_fops = {
  * and to have the device registered with devfs and the driver core
  */
 static struct usb_class_driver tempprobe_class = {
-	.name = "usb/tempprobe%d",
+	.name = "usb/" DEV "%d",
 	.fops = &tempprobe_fops,
 	.minor_base = USB_TEMPPROBE_MINOR_BASE,
 };
 
 static struct usb_driver tempprobe_driver;
-
-//INIT
 
 static int __init usb_tempprobe_init(void)
 {
@@ -121,12 +121,10 @@ static int __init usb_tempprobe_init(void)
 	/* register this driver with the USB subsystem */
 	result = usb_register(&tempprobe_driver);
 	if (result)
-		err("usb_register failed. Error number %d", result);
+		err(DEV ": usb_register failed. Error number %d", result);
 
 	return result;
 }
-
-//PROBE
 
 static int tempprobe_probe(struct usb_interface *interface,
 			   const struct usb_device_id *id)
@@ -139,12 +137,12 @@ static int tempprobe_probe(struct usb_interface *interface,
 	int retval = -ENOMEM;
 
 	/* allocate memory for our device state and initialize it */
-	dev = kmalloc(sizeof(struct usb_tempprobe), GFP_KERNEL);
+	dev = kzalloc(sizeof(struct usb_tempprobe), GFP_KERNEL);
 	if (dev == NULL) {
-		err("Out of memory");
+		err(DEV ": Out of memory");
 		goto error;
 	}
-	memset(dev, 0x00, sizeof(*dev));
+
 	kref_init(&dev->kref);
 
 	dev->udev = usb_get_dev(interface_to_usbdev(interface));
@@ -153,11 +151,10 @@ static int tempprobe_probe(struct usb_interface *interface,
 	/* set up the endpoint information */
 	/* use only the first bulk-in and bulk-out endpoints */
 
-	printk(KERN_NOTICE "Looking for interface endpoints\n");
-
+	dbg(DEV ": Looking for interface endpoints");
 	iface_desc = interface->cur_altsetting;
-	printk(KERN_NOTICE "There are %i endpoints\n",
-	       iface_desc->desc.bNumEndpoints);
+	dbg(DEV ": Found %d endpoints", iface_desc->desc.bNumEndpoints);
+
 	for (i = 0; i < iface_desc->desc.bNumEndpoints; ++i) {
 		endpoint = &iface_desc->endpoint[i].desc;
 
@@ -165,16 +162,17 @@ static int tempprobe_probe(struct usb_interface *interface,
 		    (endpoint->bEndpointAddress & USB_DIR_IN) &&
 		    ((endpoint->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
 		     == USB_ENDPOINT_XFER_INT)) {
-			printk(KERN_NOTICE "Found bulk_in endpoint\n");
+
 			/* we found a bulk in endpoint */
+			dbg(DEV ": Found bulk_in endpoint");
 			buffer_size = endpoint->wMaxPacketSize;
 			dev->bulk_in_size = buffer_size;
 			dev->bulk_in_endpointAddr = endpoint->bEndpointAddress;
+
 			dev->bulk_in_buffer = kmalloc(buffer_size, GFP_KERNEL);
+
 			if (!dev->bulk_in_buffer) {
-				err("Could not allocate bulk_in_buffer");
-				printk(KERN_NOTICE
-				       "Could not allocate bulk_in_buffer\n");
+				err(DEV ": Could not allocate bulk_in_buffer");
 				goto error;
 			}
 		}
@@ -183,14 +181,15 @@ static int tempprobe_probe(struct usb_interface *interface,
 		    !(endpoint->bEndpointAddress & USB_DIR_IN) &&
 		    ((endpoint->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
 		     == USB_ENDPOINT_XFER_INT)) {
-			printk(KERN_NOTICE "Found bulk_out endpoint\n");
+
 			/* we found a bulk out endpoint */
+			dbg(DEV ": Found bulk_out endpoint");
 			dev->bulk_out_endpointAddr = endpoint->bEndpointAddress;
 		}
 	}
 	if (!(dev->bulk_in_endpointAddr)) {	// && dev->bulk_out_endpointAddr)) {
-		err("Could not find both bulk-in and bulk-out endpoints");
-		printk(KERN_NOTICE "Could not find bulk-in\n");
+		//err("Could not find both bulk-in and bulk-out endpoints");
+		err(DEV ": Could not find bulk-in");
 
 		goto error;
 	}
@@ -202,24 +201,23 @@ static int tempprobe_probe(struct usb_interface *interface,
 	retval = usb_register_dev(interface, &tempprobe_class);
 	if (retval) {
 		/* something prevented us from registering this driver */
-		err("Not able to get a minor for this device.");
+		err(DEV ": Error obtaining minor number: %d", retval);
 		usb_set_intfdata(interface, NULL);
 		goto error;
 	}
 
 	/* let the user know what node this device is now attached to */
-	printk(KERN_NOTICE
-	       "USB Tempprobe device now attached to USBtempprobe-%d",
+	info("USB Tempprobe device now attached to tempprobe%d",
 	       interface->minor);
 	return 0;
 
-      error:
+error:
 	if (dev)
 		kref_put(&dev->kref, tempprobe_delete);
 	return retval;
 }
 
-//OPEN
+/* open */
 
 static int tempprobe_open(struct inode *inode, struct file *file)
 {
@@ -232,8 +230,9 @@ static int tempprobe_open(struct inode *inode, struct file *file)
 
 	interface = usb_find_interface(&tempprobe_driver, subminor);
 	if (!interface) {
-		err("%s - error, can't find device for minor %d",
-		    __FUNCTION__, subminor);
+		err(__FUNCTION__ ": %s - error,"
+				" can't find device for minor %d",
+				subminor);
 		retval = -ENODEV;
 		goto exit;
 	}
@@ -250,11 +249,11 @@ static int tempprobe_open(struct inode *inode, struct file *file)
 	/* save our object in the file's private structure */
 	file->private_data = dev;
 
-      exit:
+exit:
 	return retval;
 }
 
-//READ
+/* read */
 
 static ssize_t tempprobe_read(struct file *file, char __user * buffer,
 			      size_t count, loff_t * ppos)
@@ -265,50 +264,51 @@ static ssize_t tempprobe_read(struct file *file, char __user * buffer,
 
 	dev = (struct usb_tempprobe *)file->private_data;
 
-	/* This would need to be modified according to what data we will be reading in from tempprobe */
+	/* This would need to be modified according to what data we will be
+	 * reading in from tempprobe */
 
 	/* do a blocking bulk read to get data from the device */
-	/// removed usb_bulk_msg, usb_rcvbulkpipe with:
+	/* removed usb_bulk_msg, usb_rcvbulkpipe with: */
 	retval = usb_interrupt_msg(dev->udev,
 				usb_rcvintpipe(dev->udev, dev->bulk_in_endpointAddr),
 				dev->bulk_in_buffer,
 				min(dev->bulk_in_size, count),
-				&actual_size, 5000);	//HZ*10
+				&actual_size, 5000);
 
 	/* if the read was successful, copy the data to userspace */
 	if (!retval) {
-		printk(KERN_NOTICE "Read was successful\n");
+		dbg(__FUNCTION__ ": Read was successful");
 		if (copy_to_user(buffer, dev->bulk_in_buffer, actual_size))
 			retval = -EFAULT;
 		else {
 			retval = count;
-			printk(KERN_NOTICE "copy_to_user was successful\n");
+			dbg(__FUNCTION__ ": copy_to_user was successful");
 		}
 	}
 
 	return retval;
 }
 
-//IOCTL
+/* write interrupt callback */
 
 static void temmprobe_write_intr_callback(struct urb *urb, struct pt_regs *regs)
 {
 	/* sync/async unlink faults aren't errors */
-	if (urb->status &&
-	    !(urb->status == -ENOENT ||
-	      urb->status == -ECONNRESET || urb->status == -ESHUTDOWN)) {
-		dbg("%s - nonzero write bulk status received: %d",
-		    __FUNCTION__, urb->status);
+	if (urb->status && !(urb->status == -ENOENT ||
+	    urb->status == -ECONNRESET || urb->status == -ESHUTDOWN)) {
+		dbg(__FUNCTION__ ": nonzero write bulk status received: %d",
+				urb->status);
 	}
 
-	printk(KERN_NOTICE "urb status %d=0 is successful\n", urb->status);
+	dbg(__FUNCTION__ ": urb status %d=0 is successful", urb->status);
+
 	/* free up our allocated buffer */
 	usb_buffer_free(urb->dev, urb->transfer_buffer_length,
 			urb->transfer_buffer, urb->transfer_dma);
 }
 
 /*
-* IOCTL
+* ioctl
 */
 int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 		    unsigned long arg)
@@ -319,16 +319,17 @@ int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 	char command;		// a, b
 	char *buf;
 	struct usb_tempprobe *dev = file->private_data;
+
 	/*
 	 * extract the type and number bitfields, and don't decode
 	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
 	 */
 	if (_IOC_TYPE(cmd) != TEMPPROBE_MAGIC) {
-		printk(KERN_NOTICE "lighty_ioctl: !TEMPPROBE_MAGIC\n");
+		err(__FUNCTION__ ": !TEMPPROBE_MAGIC");
 		return -ENOTTY;
 	}
 	if (_IOC_NR(cmd) > TEMPPROBE_IOCTL_MAX) {
-		printk(KERN_NOTICE "lighty_ioctl:  > TEMPPROBE_IOC_MAXNR\n");
+		err(__FUNCTION__ ":  > TEMPPROBE_IOC_MAXNR");
 		return -ENOTTY;
 	}
 
@@ -344,59 +345,70 @@ int tempprobe_ioctl(struct inode *i_node, struct file *file, unsigned int cmd,
 	 * access_ok is kernel-oriented, so the concept of "read" and
 	 * "write" is reversed
 	 */
-	if (_IOC_DIR(cmd) & _IOC_READ)
-		err =
-		    !access_ok(VERIFY_WRITE, (void __user *)arg,
+
+	if (_IOC_DIR(cmd) & _IOC_READ) {
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg,
 			       _IOC_SIZE(cmd));
-	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err =
-		    !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+	}
+	else if (_IOC_DIR(cmd) & _IOC_WRITE) {
+		err = !access_ok(VERIFY_READ, (void __user *)arg,
+				_IOC_SIZE(cmd));
+	}
+
 	if (err) {
-		printk(KERN_NOTICE "lighty_ioctl: access !ok\n");
+		err(__FUNCTION__ ": access !ok");
 		return -EFAULT;
 	}
 
 	switch (cmd) {
 	case ENUM_CMD:
-		printk(KERN_NOTICE "ENUM\n");
+		dbg(__FUNCTION__ ": ENUM");
 		command = 'a';
 		break;
 	case RDALL_CMD:
-		printk(KERN_NOTICE "RDALL\n");
+		dbg(__FUNCTION__ ": RDALL");
 		command = 'b';
 		break;
 	default:
-		printk(KERN_NOTICE "Not a known command %x\n", cmd);
+		err("Unrecognized command: '%x'", cmd);
 		return -ENOMEM;
 	}
+
 	usb_led = usb_alloc_urb(0, GFP_KERNEL);
 	if (!usb_led) {
 		return -ENOMEM;
 	}
-	buf =
-	    usb_buffer_alloc(dev->udev, 64, GFP_KERNEL, &usb_led->transfer_dma);
+
+	buf = usb_buffer_alloc(dev->udev, 64, GFP_KERNEL,
+				&usb_led->transfer_dma);
+
 	if (!buf) {
-		printk(KERN_NOTICE "usb_buffer_alloc failed\n");
+		err("usb_buffer_alloc failed");
 		usb_buffer_free(dev->udev, usb_led->transfer_buffer_length,
 				usb_led->transfer_buffer,
 				usb_led->transfer_dma);
 		return -ENOMEM;
 	}
+
 	buf[0] = command;	// a, b
+
 	usb_fill_int_urb(usb_led, dev->udev,
 			 usb_sndintpipe(dev->udev, dev->bulk_out_endpointAddr),
 			 buf, 64,
 			 (usb_complete_t) temmprobe_write_intr_callback, dev,
 			 250);
+
 	usb_led->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+
 	if ((retval = usb_submit_urb(usb_led, GFP_KERNEL))) {
-		err("%s - failed submitting write urb, error %d", __FUNCTION__,
-		    retval);
+		err(__FUNCTION__ ": failed submitting write urb, "
+				"error %d", retval);
 	}
+
 	return 0;
 }
 
-//DISCONNECT
+/* disconnect */
 
 static void tempprobe_disconnect(struct usb_interface *interface)
 {
@@ -420,7 +432,7 @@ static void tempprobe_disconnect(struct usb_interface *interface)
 	info("USB Tempprobe #%d now disconnected", minor);
 }
 
-//DELETE
+/* delete */
 
 static void tempprobe_delete(struct kref *kref)
 {
@@ -431,7 +443,7 @@ static void tempprobe_delete(struct kref *kref)
 	kfree(dev);
 }
 
-//RELEASE
+/* release */
 
 static int tempprobe_release(struct inode *inode, struct file *file)
 {
@@ -446,7 +458,7 @@ static int tempprobe_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-//EXIT
+/* exit */
 
 static void __exit usb_tempprobe_exit(void)
 {
