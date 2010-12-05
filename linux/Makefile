@@ -33,6 +33,6 @@ user: user.c
 	gcc -g -o $@ $<
 
 clean::
-	$(RM) .sstore* *.cmd *.o *.ko *.mod.c user Module.symvers
+	$(RM) .sstore* *.cmd *.o *.ko *.mod.c user Module.symvers modules.order
 	$(RM) -R .tmp*
 
