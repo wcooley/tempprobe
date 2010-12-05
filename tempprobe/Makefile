@@ -14,6 +14,11 @@
 # Frederik Rouleau
 # Carlos Lamas
 #
+# Local modifications for CS572 Fall 2010 by:
+# Freddy Clark
+# Wil Cooley
+# Akbar Saidov
+#
 #----------------------------------------------------------------------------
 # On command line:
 #
