@@ -47,12 +47,14 @@ struct probe_input_record {
 	char *name;
 };
 
-char basic_thermistor[] = "basic_thermistor";
+char basic_thermistor_1[] = "basic_thermistor 1";
+char basic_thermistor_2[] = "basic_thermistor 2";
 char null_probe[] = "null_probe";
 
 const struct probe_input_record probe_inputs[] = {
 	/* Pin	Name 	(Input number is index) */
-	{ 9, 	basic_thermistor },
+	{ 9, 	basic_thermistor_1 },
+	{ 5, 	basic_thermistor_2 },
         { 0,    null_probe },
 };
 
@@ -64,6 +66,7 @@ int main(void)
 	uint8_t n;
         int8_t r;
         uint8_t i;
+	uint8_t len;
         int16_t pindata;
         double temp = 0.0;
 
@@ -86,16 +89,17 @@ int main(void)
 		if (r > 0) {
   			switch(buffer[0]){
 				case 'a': //enum
-					for (i=0; i < probe_record_cnt; i++) {
-		                            sprintf_P((char *)buffer, PSTR("%d %s\n"), i, probe_inputs[i].name);
-                                    	}
-                                         sprintf_P((char *)buffer, PSTR("\0"));
-                                        usb_rawhid_send(buffer, 50);
+					len = 0;
 					LED_OFF;
-					_delay_ms(1000);
+					for (i=0; i < probe_record_cnt; i++) {
+		                            len += sprintf_P((char *)(buffer) + len, PSTR("%d %s\n"), i, probe_inputs[i].name);
+                                    	}
+                                        usb_rawhid_send(buffer, 200);
 					LED_ON;
 					break;
 				case 'b': //rdall
+					len = 0;
+					LED_OFF;
 					for (i=0; i < probe_record_cnt; i++) {
             
                                             pindata = analogRead(probe_inputs[i].pin);
@@ -103,19 +107,12 @@ int main(void)
                                             temp = thermistor_volt_to_celc(pindata);
                                             
                                             // We multiply by 100 to give us 2 points of precision in integer form
-                                            sprintf_P((char *)buffer, PSTR("%d"), round(temp * 100));
+                                            len += sprintf_P((char *)(buffer) + len, PSTR("%d"), lround(temp * 100));
                                             
                                             // Output tab-delimiter if this is not the first column
-                                            if ( i > 0 )  sprintf_P((char *)buffer, PSTR("\t"));
-                                            else sprintf_P((char *)buffer, PSTR("\0"));                                             
+                                            if (probe_record_cnt > 1 && i != probe_record_cnt - 1) { strcat((char *)(buffer) + len,"\t"); len += 1;}                                        
                                         }
-                                        usb_rawhid_send(buffer, 50);
-					LED_OFF;
-					_delay_ms(1000);
-					LED_ON;
-					_delay_ms(1000);
-					LED_OFF;
-					_delay_ms(1000);
+                                        usb_rawhid_send(buffer, 200);
 					LED_ON;					
 					break;
                                 default:
