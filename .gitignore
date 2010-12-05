@@ -13,6 +13,7 @@
 *.ko
 *.mod.c
 .*.cmd
+.tmp*
 Module.symvers
 modules.order
 
