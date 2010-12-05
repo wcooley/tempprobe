@@ -1,17 +1,17 @@
 /* Simple example for Teensy USB Development Board
  * http://www.pjrc.com/teensy/
  * Copyright (c) 2008 PJRC.COM, LLC
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,25 +20,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
- 
+
+#include <avr/interrupt.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
-#include <avr/interrupt.h>
-#include <util/delay.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "usb_rawhid.h"
+#include <util/delay.h>
+
 #include "analog.h"
+#include "usb_rawhid.h"
 
 #define LED_CONFIG	(DDRD |= (1<<6))
 #define LED_OFF		(PORTD &= ~(1<<6))
 #define LED_ON		(PORTD |= (1<<6))
 #define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
+#define PACKET_SIZE     0x40
+
 void send_str(const char *s);
 uint8_t recv_str(char *buf, uint8_t size);
-void parse_and_execute_command(const char *buf, uint8_t num);
+void parse_and_execute_command(const uint8_t *buf, uint8_t num);
 void send_probe_enum(void);
 double thermistor_volt_to_celc(int code);
 
@@ -60,15 +63,11 @@ const struct probe_input_record probe_inputs[] = {
 
 int probe_record_cnt = sizeof(probe_inputs) / sizeof(struct probe_input_record);
 
-int main(void)
+int
+main(void)
 {
-	uint8_t buffer[64];
-	uint8_t n;
+	uint8_t buffer[PACKET_SIZE];
         int8_t r;
-        uint8_t i;
-	uint8_t len;
-        int16_t pindata;
-        double temp = 0.0;
 
 	// set for 16 MHz clock, and turn on the LED
 	CPU_PRESCALE(0);
@@ -77,57 +76,82 @@ int main(void)
 
 	// initialize the USB, and then wait for the host
 	// to set configuration.  If the Teensy is powered
-	// without a PC connected to the USB port, this 
+	// without a PC connected to the USB port, this
 	// will wait forever.
 	usb_init();
 	while (!usb_configured()) /* wait */ ;
+
+        /* Delay to give host a chance to load drivers or whatever */
 	_delay_ms(1000);
 
 	while (1) {
 		// if received data, do something with it
 		r = usb_rawhid_recv(buffer, 0);
 		if (r > 0) {
-  			switch(buffer[0]){
-				case 'a': //enum
-					len = 0;
-					LED_OFF;
-					for (i=0; i < probe_record_cnt; i++) {
-		                            len += sprintf_P((char *)(buffer) + len, PSTR("%d %s\n"), i, probe_inputs[i].name);
-                                    	}
-                                        usb_rawhid_send(buffer, 200);
-					LED_ON;
-					break;
-				case 'b': //rdall
-					len = 0;
-					LED_OFF;
-					for (i=0; i < probe_record_cnt; i++) {
-            
-                                            pindata = analogRead(probe_inputs[i].pin);
-                                            
-                                            temp = thermistor_volt_to_celc(pindata);
-                                            
-                                            // We multiply by 100 to give us 2 points of precision in integer form
-                                            len += sprintf_P((char *)(buffer) + len, PSTR("%d"), lround(temp * 100));
-                                            
-                                            // Output tab-delimiter if this is not the first column
-                                            if (probe_record_cnt > 1 && i != probe_record_cnt - 1) { strcat((char *)(buffer) + len,"\t"); len += 1;}                                        
-                                        }
-                                        usb_rawhid_send(buffer, 200);
-					LED_ON;					
-					break;
-                                default:
-                                        break;
-                        }
-                      
-                          
+                    parse_and_execute_command(buffer, r);
                 }
 	}
 }
 
+
+void
+parse_and_execute_command(const uint8_t *input_buffer, uint8_t bufsize) {
+
+        double temp = 0.0;
+	uint8_t len;
+        int16_t pindata;
+        int i;
+        uint8_t output_buffer[PACKET_SIZE];
+
+        switch(input_buffer[0]) {
+            case 'a': //enum
+                    LED_OFF;
+
+                    len = 0;
+                    for (i=0; i < probe_record_cnt; i++) {
+                        len += sprintf_P((char *)(output_buffer) + len,
+                                        PSTR("%d %s\n"), i, probe_inputs[i].name);
+                    }
+
+                    usb_rawhid_send(output_buffer, 200);
+                    LED_ON;
+                    break;
+
+            case 'b': //rdall
+                    LED_OFF;
+
+                    len = 0;
+                    for (i=0; i < probe_record_cnt; i++) {
+                        pindata = analogRead(probe_inputs[i].pin);
+                        temp = thermistor_volt_to_celc(pindata);
+
+                        // Multiply by 100 to give 2 points of precision in
+                        // integer form
+                        len += sprintf_P((char *)(output_buffer) + len,
+                                        PSTR("%d"), lround(temp * 100));
+
+                        // Output tab-delimiter if this is not the first
+                        // column
+                        if (probe_record_cnt > 1 && i != probe_record_cnt - 1) {
+                            strcat((char *)(output_buffer) + len,"\t");
+                            len++;
+                        }
+                    }
+
+                    usb_rawhid_send(output_buffer, 200);
+                    LED_ON;
+                    break;
+
+            default:
+                    break;
+        }
+}
+
+
 double thermistor_volt_to_celc(int code) {
- 
+
   double celsius = 0;
-  
+
   /* This code is copied directly from
      http://www.pjrc.com/teensy/tutorial4.html */
   if (code <= 289) {
@@ -157,6 +181,6 @@ double thermistor_volt_to_celc(int code) {
   if (code > 667) {
     celsius = 45 + (code - 712) / 8.90;
   }
-  
+
   return celsius;
 }
