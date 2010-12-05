@@ -126,7 +126,7 @@ int main(void)
 
 double thermistor_volt_to_celc(int code) {
  
-  double celsius;
+  double celsius = 0;
   
   /* This code is copied directly from
      http://www.pjrc.com/teensy/tutorial4.html */
