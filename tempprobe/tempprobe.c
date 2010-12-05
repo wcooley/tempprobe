@@ -1,4 +1,7 @@
-/* Simple example for Teensy USB Development Board
+/*
+ * This file started life as the following:
+ *
+ * Simple example for Teensy USB Development Board
  * http://www.pjrc.com/teensy/
  * Copyright (c) 2008 PJRC.COM, LLC
  *
@@ -19,6 +22,10 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
+ * Modified for CS572 and Copyright (c) 2010 by Freddy Carl, Wil Cooley and
+ * Akbar Saidov.
+ *
  */
 
 #include <avr/interrupt.h>
