@@ -1,4 +1,4 @@
-rrdtool create wirebird.rrd --step 5 \
+rrdtool create wirebird.rrd --step 2 \
 	DS:probe0:GAUGE:300:U:U \
 	DS:probe1:GAUGE:300:U:U \
 	DS:probe2:GAUGE:300:U:U \
