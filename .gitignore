@@ -1,3 +1,4 @@
+# avr-gcc stuff
 .dep/
 *.eep
 *.elf
@@ -7,3 +8,15 @@
 *.map
 *.o
 *.sym
+
+# Linux kernel build-related stuff
+*.ko
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
+
+# binaries & data
+linux/user
+*.rrd
+*.png
